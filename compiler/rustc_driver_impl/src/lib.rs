@@ -88,6 +88,7 @@ mod print;
 mod session_diagnostics;
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 mod signal_handler;
+mod unsafe_preprocessor;
 
 #[cfg(not(all(unix, any(target_env = "gnu", target_os = "macos"))))]
 mod signal_handler {
@@ -330,7 +331,7 @@ fn run_compiler(
     let has_input = match make_input(&default_early_dcx, &matches.free) {
         Err(reported) => return Err(reported),
         Ok(Some(input)) => {
-            config.input = input;
+            config.input = unsafe_preprocessor::process_unsafe_input(input);
             true // has input: normal compilation
         }
         Ok(None) => match matches.free.len() {
@@ -341,12 +342,13 @@ fn run_compiler(
                 matches.free[0], matches.free[1],
             )),
         },
-    };
-
+    };    
+    // config = unsafe_preprocessor::process_unsafe_input(config);
     drop(default_early_dcx);
 
     callbacks.config(&mut config);
 
+    // this is the actual compiler, after all the configurations are set
     interface::run_compiler(config, |compiler| {
         let sess = &compiler.sess;
         let codegen_backend = &*compiler.codegen_backend;
@@ -374,7 +376,7 @@ fn run_compiler(
 
         if !has_input {
             early_dcx.early_fatal("no input filename given"); // this is fatal
-        }
+        } // exit if there is no input
 
         if !sess.opts.unstable_opts.ls.is_empty() {
             list_metadata(&early_dcx, sess, &*codegen_backend.metadata_loader());
