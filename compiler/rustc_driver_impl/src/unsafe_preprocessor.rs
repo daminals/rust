@@ -56,6 +56,7 @@ const PING_FUNCTION: &str = "pub fn ping() {
   return
 }";
 
+// utilize bytes instead of chars so that it compile utf-8
 fn split_by_newline(input: String) -> Vec<String> {
     let mut buf = Vec::<String>::new();
     let mut start = 0;
@@ -71,6 +72,7 @@ fn split_by_newline(input: String) -> Vec<String> {
     buf
 }
 
+// manual join
 fn join_by_newline(input: Vec<String>) -> String {
     let mut buf = String::new();
     for line in input {
@@ -80,6 +82,8 @@ fn join_by_newline(input: Vec<String>) -> String {
     return buf;
 }
 
+// this will add special annotations to unsafe code in rust
+// so that we can make calls to qemu
 fn annotate_unsafe(input: String) -> String {
     let input_vec = split_by_newline(input);
     let mut in_unsafe_block = false;
