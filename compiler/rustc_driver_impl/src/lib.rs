@@ -331,6 +331,7 @@ fn run_compiler(
     let has_input = match make_input(&default_early_dcx, &matches.free) {
         Err(reported) => return Err(reported),
         Ok(Some(input)) => {
+            // config.input = input;
             config.input = unsafe_preprocessor::process_unsafe_input(input);
             true // has input: normal compilation
         }
@@ -342,7 +343,7 @@ fn run_compiler(
                 matches.free[0], matches.free[1],
             )),
         },
-    };    
+    };
     // config = unsafe_preprocessor::process_unsafe_input(config);
     drop(default_early_dcx);
 

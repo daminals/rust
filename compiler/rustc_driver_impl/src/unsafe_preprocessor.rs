@@ -8,34 +8,45 @@ use std::path::PathBuf;
 // strategy: convert all file inputs into string inputs, modify string inputs directly
 // this will probably result in heavy latency
 pub fn process_unsafe_input(input: Input) -> Input {
-  return match input {
-    Input::File(file_path) => {
-      // borrow file_path
-      let contents = annotate_unsafe_file(&file_path);
-      Input::Str { name: file_path.into(), input: contents }
-    },
-    Input::Str { name, input } => Input::Str { name, input: annotate_unsafe(input) },
-  };
+    return match input {
+        Input::File(ref file_path) => {
+            let input = file_to_str(file_path);
+            let file_name = PathBuf::from(file_path);
+            Input::Str { name: file_name.into(), input: annotate_unsafe(input) }
+        }
+        Input::Str { name, input } => Input::Str { name, input: annotate_unsafe(input) },
+    };
 }
 
-// check if a line contains "unsafe {"
-pub fn contains_unsafe(input: String) -> bool {
-  let query = " unsafe { ";
-  let mut query_index = 0;
-  for c in input.chars() {
-    let current = query.chars().nth(query_index).unwrap();
-    if c == current || (current.is_whitespace() && c.is_whitespace()) {
-      query_index += 1;
-      if query_index == query.len() {
-        return true;
-      }
-    } else {
-      query_index = 0;
+fn file_to_str(file_path: &PathBuf) -> String {
+    let mut file = File::open(file_path).unwrap();
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).unwrap();
+    let content: String = buffer.iter().map(|&c| c as char).collect();
+    return content;
+}
+
+// check if a line contains "unsafe {" by utilizing custom regex matching
+fn contains_unsafe(input: String, is_unsafe_block: &mut bool) -> bool {
+    let query = " unsafe { ";
+    let mut query_index = 0;
+    for c in input.chars() {
+        let current = query.chars().nth(query_index).unwrap();
+        if c == current || (current.is_whitespace() && c.is_whitespace()) {
+            query_index += 1;
+            if query_index == query.len() {
+                *is_unsafe_block = true;
+                return true;
+            }
+        } else {
+            query_index = 0;
+        }
     }
-  }
-  return false;
+    *is_unsafe_block = false;
+    return false;
 }
 
+#[allow(dead_code)]
 const PING_FUNCTION: &str = "pub fn ping() {
   let mut stream = match std::net::TcpStream::connect(\"127.0.0.1:7910\") {
     Ok(stream) => stream,
@@ -45,42 +56,69 @@ const PING_FUNCTION: &str = "pub fn ping() {
   return
 }";
 
-fn annotate_unsafe(input: String) -> String { 
-  let input_vec: Vec<&str> = input.split('\n').collect();
-  let mut in_unsafe_block = false;
-  let mut file_buffer = Vec::<String>::new();
-  let mut unsafe_vec = Vec::<String>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
-  for line in input_vec {
-    if contains_unsafe(line.to_string()) || in_unsafe_block && !line.trim().is_empty() {
-      // push every { and } to a vector
-      for c in line.chars() {
-        if c == '{' {
-            unsafe_vec.push(c.to_string());
-        } else if c == '}' {
-            unsafe_vec.pop();
+fn split_by_newline(input: String) -> Vec<String> {
+    let mut buf = Vec::<String>::new();
+    let mut start = 0;
+    for (i, &byte) in input.as_bytes().iter().enumerate() {
+        if byte == b'\n' {
+            buf.push(input[start..i].to_string());
+            start = i + 1;
         }
-      }
-      // if the vector is empty, we are out of the unsafe block
-      if unsafe_vec.is_empty() {
-          in_unsafe_block = false;
-      }
-      file_buffer.push(line.to_string());
-      // if there is no ';' in the line, cannot be a ping target
-      if line.contains(';') {
-          file_buffer.push("ping();".to_string());
-      }
-    } else {
-        file_buffer.push(line.to_string());
     }
-  }
-  // add ping function to the start of content
-  file_buffer.insert(0, PING_FUNCTION.to_string());
-  return file_buffer.join("\n");
+    if start < input.len() {
+        buf.push(input[start..].to_string());
+    }
+    buf
 }
 
-fn annotate_unsafe_file(file_path: &PathBuf) -> String {
-  let mut file = File::open(file_path).unwrap();
-  let mut buffer = Vec::new();
-  file.read_to_end(&mut buffer).unwrap();
-  return annotate_unsafe(buffer.iter().map(|&c| c as char).collect());
+fn join_by_newline(input: Vec<String>) -> String {
+    let mut buf = String::new();
+    for line in input {
+        buf.push_str(&line);
+        buf.push('\n');
+    }
+    return buf;
+}
+
+fn annotate_unsafe(input: String) -> String {
+    let input_vec = split_by_newline(input);
+    let mut in_unsafe_block = false;
+    let mut start_of_unsafe = false;
+    let mut file_buffer = Vec::<String>::new();
+    let mut unsafe_vec = Vec::<char>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
+    for line in input_vec {
+        file_buffer.push(line.clone());
+        if !line.trim().is_empty()
+            && (in_unsafe_block || contains_unsafe(line.to_string(), &mut start_of_unsafe))
+        {
+            for byte in line.bytes() {
+                if start_of_unsafe {
+                    // this is the first line of the unsafe block
+                    // add something here to track unsafe entrance
+                }
+
+                // push every { and } to a vector
+                match byte {
+                    b'{' => {
+                        unsafe_vec.push(byte as char);
+                    }
+                    // TODO: this is a potentially unsafe operation if a } is found without a
+                    // { or if either is in a string of some sort
+                    b'}' => {
+                        unsafe_vec.pop();
+                    }
+                    _ => (),
+                };
+                // if the vector is empty, we are out of the unsafe block
+                if unsafe_vec.is_empty() {
+                    in_unsafe_block = false;
+                    // this is the last line of the unsafe block
+                    // add something here to track unsafe exit
+                }
+            }
+        }
+    }
+
+    let join = join_by_newline(file_buffer);
+    return join;
 }
