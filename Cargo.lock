@@ -3839,6 +3839,7 @@ dependencies = [
  "rustc_target",
  "rustc_trait_selection",
  "rustc_ty_utils",
+ "rustc_unsafe_preprocessor",
  "serde_json",
  "shlex",
  "time",
@@ -4778,6 +4779,45 @@ dependencies = [
  "rustc_serialize",
  "rustc_span",
  "smallvec",
+]
+
+[[package]]
+name = "rustc_unsafe_preprocessor"
+version = "0.1.0"
+dependencies = [
+ "ctrlc",
+ "libc",
+ "rustc_ast",
+ "rustc_ast_lowering",
+ "rustc_data_structures",
+ "rustc_interface",
+ "rustc_lint",
+ "rustc_log",
+ "rustc_macros",
+ "rustc_metadata",
+ "rustc_middle",
+ "rustc_mir_build",
+ "rustc_mir_dataflow",
+ "rustc_mir_transform",
+ "rustc_monomorphize",
+ "rustc_parse",
+ "rustc_passes",
+ "rustc_pattern_analysis",
+ "rustc_privacy",
+ "rustc_query_system",
+ "rustc_resolve",
+ "rustc_session",
+ "rustc_smir",
+ "rustc_span",
+ "rustc_symbol_mangling",
+ "rustc_target",
+ "rustc_trait_selection",
+ "rustc_ty_utils",
+ "serde_json",
+ "shlex",
+ "time",
+ "tracing",
+ "windows",
 ]
 
 [[package]]
