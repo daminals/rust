@@ -63,6 +63,9 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Instant, SystemTime};
 use time::OffsetDateTime;
 
+use rustc_unsafe_preprocessor as unsafe_preprocessor;
+
+
 #[allow(unused_macros)]
 macro do_not_use_print($($t:tt)*) {
     std::compile_error!(
@@ -88,7 +91,6 @@ mod print;
 mod session_diagnostics;
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 mod signal_handler;
-mod unsafe_preprocessor;
 
 #[cfg(not(all(unix, any(target_env = "gnu", target_os = "macos"))))]
 mod signal_handler {
