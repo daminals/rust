@@ -509,6 +509,7 @@ fn make_input(
                     .early_err("couldn't read from stdin, as it did not contain valid UTF-8");
                 return Err(reported);
             }
+            // potentially could add everything here
             if let Ok(path) = env::var("UNSTABLE_RUSTDOC_TEST_PATH") {
                 let line = env::var("UNSTABLE_RUSTDOC_TEST_LINE").expect(
                     "when UNSTABLE_RUSTDOC_TEST_PATH is set \
