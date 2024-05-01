@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 use std::io::{self, Write};
 fn debug_print(input: String) {
     match io::stdout().write_all(&input.clone().into_bytes()) {
@@ -35,18 +35,19 @@ fn file_to_str(file_path: &PathBuf) -> String {
     return content;
 }
 
+// check if the character is allowed to be whitespace, and if it is a whitespace
 fn allowed_whitespace(c: char, index: usize, indices: [usize; 2]) -> bool {
-  for i in indices.iter() {
-      if c.is_whitespace() && index == *i {
-          return true;
-      }
-  }
-  return false;
+    for i in indices.iter() {
+        if c.is_whitespace() && index == *i {
+            return true;
+        }
+    }
+    return false;
 }
 
 // check if a line contains "unsafe {" by utilizing custom regex matching
 fn contains_unsafe(input: String, start_of_unsafe_block: &mut bool) -> bool {
-    let query = " unsafe { ";
+    let query = " unsafe{";
     let mut query_index = 0;
     let mut prev_char = ' ';
     let input_chars = input.chars().collect::<Vec<char>>();
@@ -56,11 +57,11 @@ fn contains_unsafe(input: String, start_of_unsafe_block: &mut bool) -> bool {
 
         // IGNORE COMMENTS
         if c == '/' && prev_char == '/' {
-          // move cursor to the next line
-          while index < input_chars.len() && input_chars[index] != '\n' {
-            index += 1;
-          }
-          continue;
+            // move cursor to the next line
+            while index < input_chars.len() && input_chars[index] != '\n' {
+                index += 1;
+            }
+            continue;
         }
 
         let current = query.chars().nth(query_index).unwrap();
@@ -72,12 +73,15 @@ fn contains_unsafe(input: String, start_of_unsafe_block: &mut bool) -> bool {
                 return true;
             }
         } else {
-          if !allowed_whitespace(c, query_index, [1,7]) {
-            query_index = 0;
-          }
-      }
-      prev_char = c;
-      index += 1;
+            // the allowed indices should be
+            // 1: 'u' because it is the first character of the query, there can be infinite whitespace before it
+            // 7: '{' because it is the last character of the query there can be infinite whitespace before it
+            if !allowed_whitespace(c, query_index, [1, 7]) {
+                query_index = 0;
+            }
+        }
+        prev_char = c;
+        index += 1;
     }
     *start_of_unsafe_block = false;
     return false;
@@ -125,19 +129,23 @@ fn annotate_unsafe(input: String) -> String {
         if !line.trim().is_empty()
             && (in_unsafe_block || contains_unsafe(line.to_string(), &mut start_of_unsafe))
         {
-          if start_of_unsafe {
-            // this is the first line of the unsafe block
-            // add something here to track unsafe entrance
-            file_buffer.push("println!(\"".to_string() + &block_count.to_string() + ". unsafe block entered\");");
-            start_of_unsafe = false;
-          }
+            if start_of_unsafe {
+                // this is the first line of the unsafe block
+                // add something here to track unsafe entrance
+                file_buffer.push(
+                    "println!(\"".to_string()
+                        + &block_count.to_string()
+                        + ". unsafe block entered\");",
+                );
+                start_of_unsafe = false;
+            }
             in_unsafe_block = true;
             for byte in line.bytes() {
                 // push every { and } to a vector
                 match byte {
-                  // IGNORE QUOTES
+                    // IGNORE QUOTES
                     b'"' | b'\'' => {
-                        if !(prev_char=='\\') {
+                        if !(prev_char == '\\') {
                             in_string = !in_string;
                         }
                     }
@@ -147,14 +155,14 @@ fn annotate_unsafe(input: String) -> String {
                         }
                     }
                     b'{' => {
-                      if !in_string {
-                        unsafe_vec.push(byte as char);
-                      }
+                        if !in_string {
+                            unsafe_vec.push(byte as char);
+                        }
                     }
                     b'}' => {
-                      if !in_string {
-                        unsafe_vec.pop();
-                      }
+                        if !in_string {
+                            unsafe_vec.pop();
+                        }
                     }
                     _ => (),
                 };
@@ -162,18 +170,22 @@ fn annotate_unsafe(input: String) -> String {
             }
             // if the vector is empty, we are out of the unsafe block
             if unsafe_vec.is_empty() {
-              in_unsafe_block = false;
-              // this is the last line of the unsafe block
-              // add something here to track unsafe exit
-              file_buffer.push("println!(\"".to_string() + &block_count.to_string() + ". unsafe block exited\");");
-              block_count += 1;
-          }          
+                in_unsafe_block = false;
+                // this is the last line of the unsafe block
+                // add something here to track unsafe exit
+                file_buffer.push(
+                    "println!(\"".to_string()
+                        + &block_count.to_string()
+                        + ". unsafe block exited\");",
+                );
+                block_count += 1;
+            }
         }
     }
 
     let join = join_by_newline(file_buffer);
     if DEBUG && block_count > 0 {
-      debug_print(join.clone());
+        debug_print(join.clone());
     }
 
     return join;

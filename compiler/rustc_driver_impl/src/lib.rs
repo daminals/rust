@@ -65,7 +65,6 @@ use time::OffsetDateTime;
 
 use rustc_unsafe_preprocessor as unsafe_preprocessor;
 
-
 #[allow(unused_macros)]
 macro do_not_use_print($($t:tt)*) {
     std::compile_error!(
