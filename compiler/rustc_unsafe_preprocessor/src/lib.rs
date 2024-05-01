@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-const DEBUG: bool = false;
+const DEBUG: bool = true;
 use std::io::{self, Write};
 fn debug_print(input: String) {
     match io::stdout().write_all(&input.clone().into_bytes()) {
@@ -48,7 +48,21 @@ fn allowed_whitespace(c: char, index: usize, indices: [usize; 2]) -> bool {
 fn contains_unsafe(input: String, start_of_unsafe_block: &mut bool) -> bool {
     let query = " unsafe { ";
     let mut query_index = 0;
-    for c in input.chars() {
+    let mut prev_char = ' ';
+    let input_chars = input.chars().collect::<Vec<char>>();
+    let mut index = 0;
+    while index < input_chars.len() {
+        let c = input_chars[index];
+
+        // IGNORE COMMENTS
+        if c == '/' && prev_char == '/' {
+          // move cursor to the next line
+          while index < input_chars.len() && input_chars[index] != '\n' {
+            index += 1;
+          }
+          continue;
+        }
+
         let current = query.chars().nth(query_index).unwrap();
         if c == current || (current.is_whitespace() && c.is_whitespace()) {
             query_index += 1;
@@ -62,6 +76,8 @@ fn contains_unsafe(input: String, start_of_unsafe_block: &mut bool) -> bool {
             query_index = 0;
           }
       }
+      prev_char = c;
+      index += 1;
     }
     *start_of_unsafe_block = false;
     return false;
@@ -101,6 +117,8 @@ fn annotate_unsafe(input: String) -> String {
     let mut start_of_unsafe = false;
     let mut file_buffer = Vec::<String>::new();
     let mut unsafe_vec = Vec::<char>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
+    let mut prev_char = ' ';
+    let mut in_string = false;
     let mut block_count = 0;
     for line in input_vec {
         file_buffer.push(line.clone());
@@ -117,16 +135,30 @@ fn annotate_unsafe(input: String) -> String {
             for byte in line.bytes() {
                 // push every { and } to a vector
                 match byte {
-                    b'{' => {
-                        unsafe_vec.push(byte as char);
+                  // IGNORE QUOTES
+                    b'"' | b'\'' => {
+                        if !(prev_char=='\\') {
+                            in_string = !in_string;
+                        }
                     }
-                    // TODO: this is a potentially unsafe operation if a } is found without a
-                    // { or if either is in a string of some sort
+                    b'/' => {
+                        if prev_char == '/' {
+                            break;
+                        }
+                    }
+                    b'{' => {
+                      if !in_string {
+                        unsafe_vec.push(byte as char);
+                      }
+                    }
                     b'}' => {
+                      if !in_string {
                         unsafe_vec.pop();
+                      }
                     }
                     _ => (),
                 };
+                prev_char = byte as char;
             }
             // if the vector is empty, we are out of the unsafe block
             if unsafe_vec.is_empty() {
