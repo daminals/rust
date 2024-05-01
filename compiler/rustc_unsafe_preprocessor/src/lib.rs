@@ -14,6 +14,14 @@ fn debug_print(input: String) {
     }
 }
 
+// read environment variables to check if we are in a compiler environment
+fn is_compiler() -> bool {
+    // check if the environment variable RUSTC_COMPILATION is set
+    // if it is set, do not inject code 
+    // only tracked code will be desired program, not stdlib or compiler code
+    return std::env::var("RUSTC_COMPILATION").is_ok();
+}
+
 // strategy: convert all file inputs into string inputs, modify string inputs directly
 // this will probably result in heavy latency
 pub fn process_unsafe_input(input: Input) -> Input {
@@ -44,7 +52,7 @@ fn allowed_whitespace(c: char, index: usize, indices: [usize; 2]) -> bool {
     }
     return false;
 }
-
+    
 // check if a line contains "unsafe {" by utilizing custom regex matching
 fn contains_unsafe(input: String, start_of_unsafe_block: &mut bool) -> bool {
     let query = " unsafe{";
@@ -116,6 +124,10 @@ fn join_by_newline(input: Vec<String>) -> String {
 // this will add special annotations to unsafe code in rust
 // so that we can make calls to qemu
 fn annotate_unsafe(input: String) -> String {
+    if is_compiler() {
+        return input;
+    }
+
     let input_vec = split_by_newline(input);
     let mut in_unsafe_block = false;
     let mut start_of_unsafe = false;
