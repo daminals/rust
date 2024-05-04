@@ -1,0 +1,4 @@
+export RUSTC_COMPILATION=""
+./x build library
+rustup toolchain link stage0 build/host/stage0-sysroot
+rustup toolchain link unsafe-preprocessor build/host/stage1

@@ -121,6 +121,7 @@ fn join_by_newline(input: Vec<String>) -> String {
     return buf;
 }
 
+
 // this will add special annotations to unsafe code in rust
 // so that we can make calls to qemu
 fn annotate_unsafe(input: String) -> String {
@@ -135,7 +136,9 @@ fn annotate_unsafe(input: String) -> String {
     let mut unsafe_vec = Vec::<char>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
     let mut prev_char = ' ';
     let mut in_string = false;
-    let mut block_count = 0;
+
+    let mut label = 0;
+
     for line in input_vec {
         file_buffer.push(line.clone());
         if !line.trim().is_empty()
@@ -145,9 +148,11 @@ fn annotate_unsafe(input: String) -> String {
                 // this is the first line of the unsafe block
                 // add something here to track unsafe entrance
                 file_buffer.push(
-                    "println!(\"".to_string()
-                        + &block_count.to_string()
-                        + ". unsafe block entered\");",
+                    // "println!(\"unsafe block entered\");".to_string(),
+                    "asm!(\n".to_string(),
+                    "\"jmp enter_unsafe_\"\n".to_string(),
+                    "\"enter_unsafe_:\"\n".to_string(),
+                    ");".to_string()
                 );
                 start_of_unsafe = false;
             }
@@ -186,17 +191,18 @@ fn annotate_unsafe(input: String) -> String {
                 // this is the last line of the unsafe block
                 // add something here to track unsafe exit
                 file_buffer.push(
-                    "println!(\"".to_string()
-                        + &block_count.to_string()
-                        + ". unsafe block exited\");",
+                    // "println!(\"unsafe block exited\");".to_string(),
+                    "asm!(\n".to_string(),
+                    "\"jmp exit_unsafe_\"\n".to_string(),
+                    "\"exit_unsafe_:\"\n".to_string(),
+                    ");".to_string()
                 );
-                block_count += 1;
             }
         }
     }
 
     let join = join_by_newline(file_buffer);
-    if DEBUG && block_count > 0 {
+    if DEBUG {
         debug_print(join.clone());
     }
 
