@@ -63,7 +63,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Instant, SystemTime};
 use time::OffsetDateTime;
 
-use rustc_unsafe_preprocessor as unsafe_preprocessor;
+use rustc_unsafe_preprocessor::process_unsafe_input;
 
 #[allow(unused_macros)]
 macro do_not_use_print($($t:tt)*) {
@@ -332,8 +332,7 @@ fn run_compiler(
     let has_input = match make_input(&default_early_dcx, &matches.free) {
         Err(reported) => return Err(reported),
         Ok(Some(input)) => {
-            // config.input = input;
-            config.input = unsafe_preprocessor::process_unsafe_input(input);
+            config.input = process_unsafe_input(input);
             true // has input: normal compilation
         }
         Ok(None) => match matches.free.len() {
@@ -345,7 +344,6 @@ fn run_compiler(
             )),
         },
     };
-    // config = unsafe_preprocessor::process_unsafe_input(config);
     drop(default_early_dcx);
 
     callbacks.config(&mut config);

@@ -5,13 +5,55 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-const DEBUG: bool = false;
+const DEBUG: bool = true;
 use std::io::{self, Write};
 fn debug_print(input: String) {
     match io::stdout().write_all(&input.clone().into_bytes()) {
         Ok(_) => (),
         Err(_e) => (),
     }
+}
+
+enum InstrumentationCode {
+  Asm,
+  #[allow(dead_code)]
+  TimeIt,
+}
+
+impl InstrumentationCode {
+    fn init(&self) -> String {
+        match self {
+            InstrumentationCode::Asm => {
+                return String::from("global_asm!(r#\".globl unsafe_test\nunsafe_test:\nret\"#);");
+            }
+            InstrumentationCode::TimeIt => {
+                return String::from("// todo ");
+            }
+        }
+    }
+
+    fn start_unsafe(&self) -> String {
+        match self {
+            InstrumentationCode::Asm => {
+                return String::from("asm!(\"call unsafe_test\");");
+            }
+            InstrumentationCode::TimeIt => {
+                return String::from("// todo ");
+            }
+        }
+    }
+
+    fn end_unsafe(&self) -> String {
+        match self {
+            InstrumentationCode::Asm => {
+                return String::from("asm!(\"call unsafe_test\");");
+            }
+            InstrumentationCode::TimeIt => {
+                return String::from("// todo ");
+            }
+        }
+    }
+
 }
 
 // read environment variables to check if we are in a compiler environment
@@ -121,14 +163,19 @@ fn join_by_newline(input: Vec<String>) -> String {
     return buf;
 }
 
-
 // this will add special annotations to unsafe code in rust
 // so that we can make calls to qemu
 fn annotate_unsafe(input: String) -> String {
+    // check if we are in a compiler environment
     if is_compiler() {
         return input;
     }
 
+    // check if the input is empty
+    if input.trim().is_empty() {
+        return input;
+    }
+    
     let input_vec = split_by_newline(input);
     let mut in_unsafe_block = false;
     let mut start_of_unsafe = false;
@@ -136,8 +183,13 @@ fn annotate_unsafe(input: String) -> String {
     let mut unsafe_vec = Vec::<char>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
     let mut prev_char = ' ';
     let mut in_string = false;
+    let mut modified = false;
 
-    let mut label = 0;
+    let instrumenter = InstrumentationCode::Asm;
+    
+
+    file_buffer.push("use std::arch::{asm, global_asm};".to_string());
+    file_buffer.push(instrumenter.init());
 
     for line in input_vec {
         file_buffer.push(line.clone());
@@ -145,15 +197,10 @@ fn annotate_unsafe(input: String) -> String {
             && (in_unsafe_block || contains_unsafe(line.to_string(), &mut start_of_unsafe))
         {
             if start_of_unsafe {
+                modified = true;
                 // this is the first line of the unsafe block
                 // add something here to track unsafe entrance
-                file_buffer.push(
-                    // "println!(\"unsafe block entered\");".to_string(),
-                    "asm!(\n".to_string(),
-                    "\"jmp enter_unsafe_\"\n".to_string(),
-                    "\"enter_unsafe_:\"\n".to_string(),
-                    ");".to_string()
-                );
+                file_buffer.push(instrumenter.start_unsafe());
                 start_of_unsafe = false;
             }
             in_unsafe_block = true;
@@ -190,15 +237,15 @@ fn annotate_unsafe(input: String) -> String {
                 in_unsafe_block = false;
                 // this is the last line of the unsafe block
                 // add something here to track unsafe exit
-                file_buffer.push(
-                    // "println!(\"unsafe block exited\");".to_string(),
-                    "asm!(\n".to_string(),
-                    "\"jmp exit_unsafe_\"\n".to_string(),
-                    "\"exit_unsafe_:\"\n".to_string(),
-                    ");".to_string()
-                );
+                // insert before last line (so that inline assembly is inside unsafe block)
+                file_buffer.insert(file_buffer.len() - 1, instrumenter.end_unsafe());
             }
         }
+    }
+
+    // if the set is empty, remove the asm macro import
+    if !modified {
+        file_buffer.remove(0);
     }
 
     let join = join_by_newline(file_buffer);
