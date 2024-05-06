@@ -14,9 +14,9 @@ fn debug_print(input: String) {
     }
 }
 
+#[allow(dead_code)]
 enum InstrumentationCode {
   Asm,
-  #[allow(dead_code)]
   TimeIt,
 }
 
@@ -27,7 +27,18 @@ impl InstrumentationCode {
                 return String::from("global_asm!(r#\".globl unsafe_test\nunsafe_test:\nret\"#);");
             }
             InstrumentationCode::TimeIt => {
-                return String::from("// todo ");
+                return String::from("");
+            }
+        }
+    }
+
+    fn import(&self) -> String {
+        match self {
+            InstrumentationCode::Asm => {
+                return String::from("use std::arch::{asm, global_asm};");
+            }
+            InstrumentationCode::TimeIt => {
+                return String::from("");
             }
         }
     }
@@ -38,7 +49,9 @@ impl InstrumentationCode {
                 return String::from("asm!(\"call unsafe_test\");");
             }
             InstrumentationCode::TimeIt => {
-                return String::from("// todo ");
+                return String::from(r#"
+                let pre_9830745908903894709234 = core::arch::x86_64::_rdtsc();
+                "#);
             }
         }
     }
@@ -46,10 +59,19 @@ impl InstrumentationCode {
     fn end_unsafe(&self) -> String {
         match self {
             InstrumentationCode::Asm => {
-                return String::from("asm!(\"call unsafe_test\");");
+                return self.start_unsafe();
             }
             InstrumentationCode::TimeIt => {
-                return String::from("// todo ");
+              return String::from(r#"
+    let mut file = std::fs::OpenOptions::new()
+    .read(false)
+    .append(true)
+    .create(true)
+    .open("unsafe_times.txt")
+    .expect("unable to open file");
+    let output = format!("{}\n", core::arch::x86_64::_rdtsc() - pre_9830745908903894709234);
+    std::io::Write::write_all(&mut file, output.as_bytes())
+    .expect("unable to write to file");"#);
             }
         }
     }
@@ -187,8 +209,7 @@ fn annotate_unsafe(input: String) -> String {
 
     let instrumenter = InstrumentationCode::Asm;
     
-
-    file_buffer.push("use std::arch::{asm, global_asm};".to_string());
+    file_buffer.push(instrumenter.import());
     file_buffer.push(instrumenter.init());
 
     for line in input_vec {
